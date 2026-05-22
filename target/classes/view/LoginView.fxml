@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<StackPane xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="controller.LoginController"
+           styleClass="login-root">
+
+    <VBox alignment="CENTER" spacing="20" maxWidth="450" styleClass="login-card">
+        <padding><Insets top="40" right="40" bottom="40" left="40"/></padding>
+
+        <!-- Logo / Title -->
+        <VBox alignment="CENTER" spacing="5">
+            <Label text="&#128218;" style="-fx-font-size: 48px;"/>
+            <Label text="Gestion des Notes" styleClass="login-title"/>
+            <Label text="Systeme de gestion academique" styleClass="login-subtitle"/>
+        </VBox>
+
+        <Region prefHeight="20"/>
+
+        <!-- Form -->
+        <VBox spacing="12" alignment="CENTER_LEFT">
+            <Label text="Identifiant" styleClass="field-label"/>
+            <TextField fx:id="txtLogin" promptText="Entrez votre login" styleClass="text-field-modern"/>
+
+            <Label text="Mot de passe" styleClass="field-label"/>
+            <PasswordField fx:id="txtPassword" promptText="Entrez votre mot de passe" styleClass="text-field-modern"/>
+
+            <Label fx:id="lblError" text="" visible="false" styleClass="error-label"/>
+        </VBox>
+
+        <Region prefHeight="10"/>
+
+        <!-- Button -->
+        <Button fx:id="btnLogin" text="Se connecter" onAction="#handleLogin" 
+                maxWidth="Infinity" styleClass="btn-primary" defaultButton="true"/>
+
+        <ProgressIndicator fx:id="progressIndicator" visible="false" maxWidth="30" maxHeight="30"/>
+
+        <Region prefHeight="10"/>
+
+        <Label text="v2.0.0 - Academie" styleClass="version-label"/>
+    </VBox>
+</StackPane>

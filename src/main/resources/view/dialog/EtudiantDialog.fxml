@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="controller.EtudiantDialogController"
+      spacing="12" styleClass="dialog-container">
+    <padding><Insets top="20" right="25" bottom="20" left="25"/></padding>
+
+    <Label text="Etudiant" styleClass="dialog-title"/>
+
+    <GridPane vgap="10" hgap="15">
+        <columnConstraints>
+            <ColumnConstraints minWidth="100" prefWidth="100"/>
+            <ColumnConstraints minWidth="200" prefWidth="250" hgrow="ALWAYS"/>
+        </columnConstraints>
+
+        <Label text="CNE *" GridPane.rowIndex="0" GridPane.columnIndex="0" styleClass="field-label"/>
+        <TextField fx:id="txtCne" GridPane.rowIndex="0" GridPane.columnIndex="1" styleClass="text-field-modern"/>
+
+        <Label text="Nom *" GridPane.rowIndex="1" GridPane.columnIndex="0" styleClass="field-label"/>
+        <TextField fx:id="txtNom" GridPane.rowIndex="1" GridPane.columnIndex="1" styleClass="text-field-modern"/>
+
+        <Label text="Prenom *" GridPane.rowIndex="2" GridPane.columnIndex="0" styleClass="field-label"/>
+        <TextField fx:id="txtPrenom" GridPane.rowIndex="2" GridPane.columnIndex="1" styleClass="text-field-modern"/>
+
+        <Label text="Date Naissance" GridPane.rowIndex="3" GridPane.columnIndex="0" styleClass="field-label"/>
+        <DatePicker fx:id="dpDateNaissance" GridPane.rowIndex="3" GridPane.columnIndex="1" styleClass="date-picker-modern"/>
+
+        <Label text="Email" GridPane.rowIndex="4" GridPane.columnIndex="0" styleClass="field-label"/>
+        <TextField fx:id="txtEmail" GridPane.rowIndex="4" GridPane.columnIndex="1" styleClass="text-field-modern"/>
+
+        <Label text="Telephone" GridPane.rowIndex="5" GridPane.columnIndex="0" styleClass="field-label"/>
+        <TextField fx:id="txtTelephone" GridPane.rowIndex="5" GridPane.columnIndex="1" styleClass="text-field-modern"/>
+
+        <Label text="Promotion" GridPane.rowIndex="6" GridPane.columnIndex="0" styleClass="field-label"/>
+        <ComboBox fx:id="cbPromotion" GridPane.rowIndex="6" GridPane.columnIndex="1" promptText="Assigner a une promotion" styleClass="combo-modern"/>
+    </GridPane>
+
+    <Region prefHeight="10"/>
+
+    <HBox spacing="10" alignment="CENTER_RIGHT">
+        <Button fx:id="btnCancel" text="Annuler" styleClass="btn-secondary"/>
+        <Button fx:id="btnSave" text="Enregistrer" styleClass="btn-primary" defaultButton="true"/>
+    </HBox>
+</VBox>
