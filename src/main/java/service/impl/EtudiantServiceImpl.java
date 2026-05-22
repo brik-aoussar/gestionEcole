@@ -10,14 +10,16 @@ import model.Promotion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import service.EtudiantService;
+import util.ExcelImporter;
 import util.Validator;
 
+import java.io.File;
 import java.util.List;
 
 /**
  * Service de gestion des etudiants.
- * FIXED: validation complete via Validator.validerEtudiant(),
- *        gestion des doublons CNE, inscriptions robustes.
+ * FIXED: noms des methodes alignes sur l'interface EtudiantService,
+ *        ajout des methodes manquantes recupererParFiliere() et importerDepuisExcel().
  */
 public class EtudiantServiceImpl implements EtudiantService {
     private static final Logger LOGGER = LoggerFactory.getLogger(EtudiantServiceImpl.class);
@@ -30,7 +32,7 @@ public class EtudiantServiceImpl implements EtudiantService {
     }
 
     @Override
-    public Etudiant ajouterEtudiant(Etudiant e) {
+    public Etudiant ajouter(Etudiant e) {
         String erreur = Validator.validerEtudiant(e);
         if (erreur != null) throw new ValidationException("etudiant", erreur);
 
@@ -42,14 +44,13 @@ public class EtudiantServiceImpl implements EtudiantService {
     }
 
     @Override
-    public Etudiant modifierEtudiant(Etudiant e) {
+    public Etudiant modifier(Etudiant e) {
         String erreur = Validator.validerEtudiant(e);
         if (erreur != null) throw new ValidationException("etudiant", erreur);
 
         Etudiant existant = etudiantDAO.findById(e.getId());
         if (existant == null) throw new ServiceException("Etudiant introuvable");
 
-        // Verifier que le nouveau CNE n'est pas deja utilise par un autre etudiant
         if (!existant.getCne().equals(e.getCne())) {
             Etudiant doublon = etudiantDAO.findByCne(e.getCne());
             if (doublon != null && !doublon.getId().equals(e.getId())) {
@@ -61,14 +62,7 @@ public class EtudiantServiceImpl implements EtudiantService {
     }
 
     @Override
-    public void supprimerEtudiant(Long id) {
-        if (etudiantDAO.findById(id) == null) throw new ServiceException("Etudiant introuvable");
-        etudiantDAO.delete(id);
-        LOGGER.info("Suppression etudiant: {}", id);
-    }
-
-    @Override
-    public void archiverEtudiant(Long id) {
+    public void archiver(Long id) {
         Etudiant e = etudiantDAO.findById(id);
         if (e == null) throw new ServiceException("Etudiant introuvable");
         e.setStatut(Etudiant.Statut.ARCHIVE);
@@ -77,7 +71,54 @@ public class EtudiantServiceImpl implements EtudiantService {
     }
 
     @Override
-    public void inscrireEtudiant(Long etudiantId, Long promotionId) {
+    public List<Etudiant> recupererTous() {
+        return etudiantDAO.findAll();
+    }
+
+    @Override
+    public List<Etudiant> recupererParPromotion(Long promotionId) {
+        return etudiantDAO.findByPromotion(promotionId);
+    }
+
+    @Override
+    public List<Etudiant> recupererParFiliere(Long filiereId) {
+        return etudiantDAO.findByFiliere(filiereId);
+    }
+
+    @Override
+    public List<Etudiant> rechercher(String terme) {
+        return etudiantDAO.search(terme);
+    }
+
+    /**
+     * Importe les etudiants depuis un fichier Excel et les inscrit a une promotion.
+     * FIXED: methode manquante dans l'implementation originale.
+     */
+    @Override
+    public int importerDepuisExcel(File fichier, Long promotionId) {
+        Promotion p = promotionDAO.findById(promotionId);
+        if (p == null) throw new ServiceException("Promotion introuvable (id=" + promotionId + ")");
+
+        List<Etudiant> etudiants = ExcelImporter.importerEtudiants(fichier);
+        int count = etudiantDAO.insertBatch(etudiants);
+
+        // Inscrire chaque etudiant dans la promotion
+        for (Etudiant e : etudiants) {
+            try {
+                Etudiant saved = etudiantDAO.findByCne(e.getCne());
+                if (saved != null) {
+                    etudiantDAO.inscrire(saved.getId(), promotionId);
+                }
+            } catch (Exception ex) {
+                LOGGER.warn("Erreur inscription etudiant CNE={}: {}", e.getCne(), ex.getMessage());
+            }
+        }
+        LOGGER.info("Import Excel: {} etudiants importes, promotion={}", count, promotionId);
+        return count;
+    }
+
+    @Override
+    public void inscrireAPromotion(Long etudiantId, Long promotionId) {
         Etudiant e = etudiantDAO.findById(etudiantId);
         if (e == null) throw new ServiceException("Etudiant introuvable");
         Promotion p = promotionDAO.findById(promotionId);
@@ -87,19 +128,19 @@ public class EtudiantServiceImpl implements EtudiantService {
     }
 
     @Override
-    public Etudiant getEtudiant(Long id) { return etudiantDAO.findById(id); }
-
-    @Override
-    public Etudiant getEtudiantParCne(String cne) { return etudiantDAO.findByCne(cne); }
-
-    @Override
-    public List<Etudiant> listerEtudiants() { return etudiantDAO.findAll(); }
-
-    @Override
-    public List<Etudiant> listerEtudiantsParPromotion(Long promotionId) {
-        return etudiantDAO.findByPromotion(promotionId);
+    public Etudiant recupererParId(Long id) {
+        return etudiantDAO.findById(id);
     }
 
     @Override
-    public List<Etudiant> rechercherEtudiants(String terme) { return etudiantDAO.search(terme); }
+    public Etudiant recupererParCne(String cne) {
+        return etudiantDAO.findByCne(cne);
+    }
+
+    /** Methode supplementaire non presente dans l'interface (utilisable en interne). */
+    public void supprimer(Long id) {
+        if (etudiantDAO.findById(id) == null) throw new ServiceException("Etudiant introuvable");
+        etudiantDAO.delete(id);
+        LOGGER.info("Suppression etudiant: {}", id);
+    }
 }

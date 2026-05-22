@@ -42,7 +42,7 @@ public class ResponsableController implements DashboardController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ResponsableController.class);
     private Utilisateur utilisateur;
-    private final ServiceLocator locator = new ServiceLocator();
+    private final ServiceLocator locator = ServiceLocator.getInstance();
     private final EtudiantService etudiantService = locator.getEtudiantService();
     private final FiliereService filiereService = locator.getFiliereService();
     private final PromotionService promotionService = locator.getPromotionService();
@@ -508,7 +508,7 @@ public class ResponsableController implements DashboardController {
         }
         try {
             double val = Double.parseDouble(valStr);
-            Note n = new Note(val, type, e.getId(), sm.getId(), utilisateur.getId());
+            Note n = new Note(val, type, e.getId(), sm.getId(), null); // saisi_par null: responsable n'est pas enseignant
             noteService.saisirNote(n);
             refreshNotesForSousModule(sm.getId());
             txtNoteValeur.clear();

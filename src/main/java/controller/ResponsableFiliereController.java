@@ -36,7 +36,7 @@ public class ResponsableFiliereController implements DashboardController {
     private static final Logger LOGGER = LoggerFactory.getLogger(ResponsableFiliereController.class);
     private Utilisateur utilisateur;
     private ResponsableFiliere responsable;
-    private final ServiceLocator locator = new ServiceLocator();
+    private final ServiceLocator locator = ServiceLocator.getInstance();
     private final EtudiantService etudiantService = locator.getEtudiantService();
     private final PromotionService promotionService = locator.getPromotionService();
     private final NoteService noteService = locator.getNoteService();

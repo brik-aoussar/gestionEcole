@@ -12,7 +12,8 @@ public class UtilisateurDAO {
     private static final Logger LOGGER = LoggerFactory.getLogger(UtilisateurDAO.class);
 
     public Utilisateur findByLogin(String login) {
-        String sql = "SELECT u.*, e.matricule as ens_matricule, e.specialite, e.grade, " +
+        String sql = "SELECT u.*, " +
+                "e.id as ens_pk, e.matricule as ens_matricule, e.specialite, e.grade, " +
                 "rp.matricule as rp_matricule, rp.departement, " +
                 "rf.matricule as rf_matricule, rf.filiere_id " +
                 "FROM utilisateur u " +
@@ -38,6 +39,9 @@ public class UtilisateurDAO {
         switch (role) {
             case ENSEIGNANT -> {
                 Enseignant e = new Enseignant();
+                // FIXED: charger le PK propre de la table enseignant pour saisi_par dans note
+                long ensPk = rs.getLong("ens_pk");
+                if (!rs.wasNull()) e.setEnseignantPk(ensPk);
                 e.setMatricule(rs.getString("ens_matricule"));
                 e.setSpecialite(rs.getString("specialite"));
                 String grade = rs.getString("grade");

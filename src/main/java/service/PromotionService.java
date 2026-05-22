@@ -7,8 +7,7 @@ public interface PromotionService {
     Promotion ajouter(Promotion p);
     Promotion modifier(Promotion p);
     void supprimer(Long id);
-    List<Promotion> recupererToutes();
     Promotion recupererParId(Long id);
+    List<Promotion> recupererToutes();
     List<Promotion> recupererParFiliere(Long filiereId);
-    List<Promotion> recupererActives();
 }

@@ -34,7 +34,7 @@ public class EnseignantController implements DashboardController {
     private static final Logger LOGGER = LoggerFactory.getLogger(EnseignantController.class);
     private Utilisateur utilisateur;
     private Enseignant enseignant;
-    private final ServiceLocator locator = new ServiceLocator();
+    private final ServiceLocator locator = ServiceLocator.getInstance();
     private final ModuleService moduleService = locator.getModuleService();
     private final EtudiantService etudiantService = locator.getEtudiantService();
     private final NoteService noteService = locator.getNoteService();
@@ -136,7 +136,7 @@ public class EnseignantController implements DashboardController {
         }
         try {
             double val = Double.parseDouble(valStr);
-            Note n = new Note(val, type, e.getId(), sm.getId(), utilisateur.getId());
+            Note n = new Note(val, type, e.getId(), sm.getId(), enseignant.getEnseignantPk());
             noteService.saisirNote(n);
             loadEtudiantsForSousModule();
             txtNote.clear();
