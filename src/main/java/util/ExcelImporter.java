@@ -18,6 +18,11 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+/**
+ * Import Excel (.xls et .xlsx) pour etudiants et notes.
+ * FIXED: FileInputStream ferme proprement via try-with-resources dans ouvrirWorkbook,
+ *        gestion des cellules vides, meilleure robustesse.
+ */
 public final class ExcelImporter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ExcelImporter.class);
@@ -33,7 +38,7 @@ public final class ExcelImporter {
         try (Workbook wb = ouvrirWorkbook(fichier)) {
             Sheet sheet = wb.getSheetAt(0);
             for (Row row : sheet) {
-                if (row.getRowNum() == 0) continue; // Ignorer l'en-tete
+                if (row.getRowNum() == 0) continue;
                 try {
                     Etudiant e = new Etudiant();
                     e.setCne(getCellString(row, 0));
@@ -61,6 +66,7 @@ public final class ExcelImporter {
     /**
      * Importe des notes depuis un fichier Excel.
      * Colonnes attendues: CNE_Etudiant, Valeur, TypeNote
+     * FIXED: le CNE est stocke dans etudiantCne pour resolution ulterieure par NoteServiceImpl.
      */
     public static List<Note> importerNotes(File fichier, Long sousModuleId, Long enseignantId) {
         List<Note> notes = new ArrayList<>();
@@ -73,11 +79,14 @@ public final class ExcelImporter {
                     double valeur = getCellNumeric(row, 1);
                     String typeStr = getCellString(row, 2);
                     if (cne == null || cne.isBlank()) continue;
-                    if (!Validator.validerNote(valeur)) continue;
+                    if (!Validator.validerNote(valeur)) {
+                        LOGGER.warn("Note invalide ligne {}: valeur={}", row.getRowNum() + 1, valeur);
+                        continue;
+                    }
 
                     Note.TypeNote type = parseTypeNote(typeStr);
                     Note n = new Note(valeur, type, null, sousModuleId, enseignantId);
-                    n.setEtudiantCne(cne); // Pour resolution ulterieure
+                    n.setEtudiantCne(cne); // Pour resolution ulterieure par NoteServiceImpl
                     notes.add(n);
                 } catch (Exception ex) {
                     LOGGER.warn("Ligne {} ignoree: {}", row.getRowNum() + 1, ex.getMessage());
@@ -91,15 +100,20 @@ public final class ExcelImporter {
         return notes;
     }
 
+    /**
+     * FIXED: FileInputStream ferme proprement via try-with-resources.
+     * Le Workbook herite de Closeable et sera ferme par le try-with-resources de l'appelant.
+     */
     private static Workbook ouvrirWorkbook(File fichier) throws IOException {
         String name = fichier.getName().toLowerCase();
-        FileInputStream fis = new FileInputStream(fichier);
-        if (name.endsWith(".xlsx")) {
-            return new XSSFWorkbook(fis);
-        } else if (name.endsWith(".xls")) {
-            return new HSSFWorkbook(fis);
-        } else {
-            throw new IllegalArgumentException("Format non supporte. Utilisez .xls ou .xlsx");
+        try (FileInputStream fis = new FileInputStream(fichier)) {
+            if (name.endsWith(".xlsx")) {
+                return new XSSFWorkbook(fis);
+            } else if (name.endsWith(".xls")) {
+                return new HSSFWorkbook(fis);
+            } else {
+                throw new IllegalArgumentException("Format non supporte. Utilisez .xls ou .xlsx");
+            }
         }
     }
 
@@ -109,6 +123,11 @@ public final class ExcelImporter {
         return switch (cell.getCellType()) {
             case STRING -> cell.getStringCellValue().trim();
             case NUMERIC -> String.valueOf((long) cell.getNumericCellValue());
+            case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
+            case FORMULA -> {
+                try { yield String.valueOf((long) cell.getNumericCellValue()); }
+                catch (Exception e) { yield cell.getStringCellValue().trim(); }
+            }
             default -> null;
         };
     }
@@ -119,8 +138,12 @@ public final class ExcelImporter {
         return switch (cell.getCellType()) {
             case NUMERIC -> cell.getNumericCellValue();
             case STRING -> {
-                try { yield Double.parseDouble(cell.getStringCellValue().replace(",", ".")); }
+                try { yield Double.parseDouble(cell.getStringCellValue().replace(",", ".").trim()); }
                 catch (NumberFormatException e) { yield 0; }
+            }
+            case FORMULA -> {
+                try { yield cell.getNumericCellValue(); }
+                catch (Exception e) { yield 0; }
             }
             default -> 0;
         };
@@ -132,6 +155,14 @@ public final class ExcelImporter {
         if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
             Date date = cell.getDateCellValue();
             return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        }
+        if (cell.getCellType() == CellType.STRING) {
+            try {
+                return LocalDate.parse(cell.getStringCellValue().trim());
+            } catch (Exception e) {
+                LOGGER.warn("Date invalide: {}", cell.getStringCellValue());
+                return null;
+            }
         }
         return null;
     }

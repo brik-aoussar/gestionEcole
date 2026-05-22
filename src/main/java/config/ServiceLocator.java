@@ -7,18 +7,22 @@ import service.impl.*;
 /**
  * Assemblage manuel de toutes les dependances (DAO -> Service).
  * Pattern Service Locator / Manual DI Container.
- * Instancier une seule fois au demarrage de l'application.
+ * FIXED: veritable singleton pour eviter la recreation des DAO a chaque instanciation.
  */
 public class ServiceLocator {
 
+    // ── Singleton instance ──────────────────────────────────────────────────
+    private static volatile ServiceLocator INSTANCE;
+    private static final Object LOCK = new Object();
+
     // ── DAO ───────────────────────────────────────────────────────────────────
-    private final FiliereDAO filiereDAO = new FiliereDAO();
-    private final PromotionDAO promotionDAO = new PromotionDAO();
-    private final EtudiantDAO etudiantDAO = new EtudiantDAO();
-    private final ModuleDAO moduleDAO = new ModuleDAO();
-    private final NoteDAO noteDAO = new NoteDAO();
-    private final UtilisateurDAO utilisateurDAO = new UtilisateurDAO();
-    private final StatistiqueDAO statistiqueDAO = new StatistiqueDAO();
+    private final FiliereDAO filiereDAO;
+    private final PromotionDAO promotionDAO;
+    private final EtudiantDAO etudiantDAO;
+    private final ModuleDAO moduleDAO;
+    private final NoteDAO noteDAO;
+    private final UtilisateurDAO utilisateurDAO;
+    private final StatistiqueDAO statistiqueDAO;
 
     // ── SERVICES ──────────────────────────────────────────────────────────────
     private final AuthService authService;
@@ -29,7 +33,15 @@ public class ServiceLocator {
     private final StatistiqueService statistiqueService;
     private final PromotionService promotionService;
 
-    public ServiceLocator() {
+    private ServiceLocator() {
+        this.filiereDAO = new FiliereDAO();
+        this.promotionDAO = new PromotionDAO();
+        this.etudiantDAO = new EtudiantDAO();
+        this.moduleDAO = new ModuleDAO();
+        this.noteDAO = new NoteDAO();
+        this.utilisateurDAO = new UtilisateurDAO();
+        this.statistiqueDAO = new StatistiqueDAO();
+
         this.authService = new AuthServiceImpl(utilisateurDAO);
         this.filiereService = new FiliereServiceImpl(filiereDAO);
         this.etudiantService = new EtudiantServiceImpl(etudiantDAO, promotionDAO);
@@ -38,6 +50,17 @@ public class ServiceLocator {
         this.statistiqueService = new StatistiqueServiceImpl(
                 statistiqueDAO, etudiantDAO, noteDAO, moduleDAO, promotionDAO);
         this.promotionService = new PromotionServiceImpl(promotionDAO, filiereDAO);
+    }
+
+    public static ServiceLocator getInstance() {
+        if (INSTANCE == null) {
+            synchronized (LOCK) {
+                if (INSTANCE == null) {
+                    INSTANCE = new ServiceLocator();
+                }
+            }
+        }
+        return INSTANCE;
     }
 
     public AuthService getAuthService() { return authService; }

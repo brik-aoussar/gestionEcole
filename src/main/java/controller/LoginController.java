@@ -17,10 +17,14 @@ import util.FxUtils;
 
 import java.io.IOException;
 
+/**
+ * Controleur de la vue de connexion.
+ * FIXED: utilisation du singleton ServiceLocator.getInstance() au lieu de new ServiceLocator().
+ */
 public class LoginController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(LoginController.class);
-    private final AuthService authService = new ServiceLocator().getAuthService();
+    private final AuthService authService = ServiceLocator.getInstance().getAuthService();
 
     @FXML private TextField txtLogin;
     @FXML private PasswordField txtPassword;
@@ -33,7 +37,6 @@ public class LoginController {
         lblError.setVisible(false);
         progressIndicator.setVisible(false);
 
-        // Enter key support
         txtLogin.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ENTER) handleLogin(); });
         txtPassword.setOnKeyPressed(e -> { if (e.getCode() == KeyCode.ENTER) handleLogin(); });
     }
@@ -50,7 +53,6 @@ public class LoginController {
 
         setLoading(true);
 
-        // Run in background to avoid UI freeze
         new Thread(() -> {
             try {
                 Utilisateur user = authService.login(login, password);
@@ -91,7 +93,6 @@ public class LoginController {
             FXMLLoader loader = new FXMLLoader(getClass().getResource(fxmlFile));
             Parent root = loader.load();
 
-            // Pass user to controller
             Object ctrl = loader.getController();
             if (ctrl instanceof DashboardController dc) {
                 dc.setUtilisateur(user);

@@ -10,11 +10,23 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * DAO pour les notes.
+ * FIXED: gestion du Duplicate entry (code 1062) via ON DUPLICATE KEY UPDATE,
+ *        protection contre division par zero dans calculerMoyenneGenerale,
+ *        meilleure gestion des connexions.
+ */
 public class NoteDAO {
     private static final Logger LOGGER = LoggerFactory.getLogger(NoteDAO.class);
 
+    /**
+     * FIXED: ON DUPLICATE KEY UPDATE pour gerer les doublons sans crash.
+     * Si une note existe deja pour (etudiant, sous_module, type_note), on la met a jour.
+     */
     public Note insert(Note n) {
-        String sql = "INSERT INTO note (valeur, type_note, etudiant_id, sous_module_id, saisi_par, validee) VALUES (?,?,?,?,?,?)";
+        String sql = "INSERT INTO note (valeur, type_note, etudiant_id, sous_module_id, saisi_par, validee) " +
+                     "VALUES (?,?,?,?,?,?) " +
+                     "ON DUPLICATE KEY UPDATE valeur=VALUES(valeur), saisi_par=VALUES(saisi_par), validee=VALUES(validee)";
         try (Connection c = DatabaseConnection.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setDouble(1, n.getValeur());
@@ -24,7 +36,9 @@ public class NoteDAO {
             if (n.getSaisiPar() != null) ps.setLong(5, n.getSaisiPar()); else ps.setNull(5, Types.BIGINT);
             ps.setBoolean(6, n.isValidee());
             ps.executeUpdate();
-            try (ResultSet rs = ps.getGeneratedKeys()) { if (rs.next()) n.setId(rs.getLong(1)); }
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) n.setId(rs.getLong(1));
+            }
             return n;
         } catch (SQLException ex) {
             LOGGER.error("Erreur insertion note", ex);
@@ -64,7 +78,11 @@ public class NoteDAO {
     }
 
     public Note findById(Long id) {
-        String sql = "SELECT n.*, e.nom as etudiant_nom, e.cne as etudiant_cne, sm.intitule as sous_module_intitule, m.intitule as module_intitule FROM note n JOIN etudiant e ON n.etudiant_id=e.id JOIN sous_module sm ON n.sous_module_id=sm.id JOIN module m ON sm.module_id=m.id WHERE n.id=?";
+        String sql = "SELECT n.*, e.nom as etudiant_nom, e.cne as etudiant_cne, " +
+                     "sm.intitule as sous_module_intitule, m.intitule as module_intitule " +
+                     "FROM note n JOIN etudiant e ON n.etudiant_id=e.id " +
+                     "JOIN sous_module sm ON n.sous_module_id=sm.id " +
+                     "JOIN module m ON sm.module_id=m.id WHERE n.id=?";
         try (Connection c = DatabaseConnection.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setLong(1, id);
@@ -76,15 +94,33 @@ public class NoteDAO {
     }
 
     public List<Note> findByEtudiant(Long etudiantId) {
-        return findByQuery("SELECT n.*, e.nom as etudiant_nom, e.cne as etudiant_cne, sm.intitule as sous_module_intitule, m.intitule as module_intitule FROM note n JOIN etudiant e ON n.etudiant_id=e.id JOIN sous_module sm ON n.sous_module_id=sm.id JOIN module m ON sm.module_id=m.id WHERE n.etudiant_id=? ORDER BY m.intitule, sm.intitule", etudiantId);
+        return findByQuery(
+            "SELECT n.*, e.nom as etudiant_nom, e.cne as etudiant_cne, " +
+            "sm.intitule as sous_module_intitule, m.intitule as module_intitule " +
+            "FROM note n JOIN etudiant e ON n.etudiant_id=e.id " +
+            "JOIN sous_module sm ON n.sous_module_id=sm.id " +
+            "JOIN module m ON sm.module_id=m.id WHERE n.etudiant_id=? " +
+            "ORDER BY m.intitule, sm.intitule", etudiantId);
     }
 
     public List<Note> findBySousModule(Long sousModuleId) {
-        return findByQuery("SELECT n.*, e.nom as etudiant_nom, e.cne as etudiant_cne, sm.intitule as sous_module_intitule, m.intitule as module_intitule FROM note n JOIN etudiant e ON n.etudiant_id=e.id JOIN sous_module sm ON n.sous_module_id=sm.id JOIN module m ON sm.module_id=m.id WHERE n.sous_module_id=? ORDER BY e.nom, e.prenom", sousModuleId);
+        return findByQuery(
+            "SELECT n.*, e.nom as etudiant_nom, e.cne as etudiant_cne, " +
+            "sm.intitule as sous_module_intitule, m.intitule as module_intitule " +
+            "FROM note n JOIN etudiant e ON n.etudiant_id=e.id " +
+            "JOIN sous_module sm ON n.sous_module_id=sm.id " +
+            "JOIN module m ON sm.module_id=m.id WHERE n.sous_module_id=? " +
+            "ORDER BY e.nom, e.prenom", sousModuleId);
     }
 
     public List<Note> findByPromotion(Long promotionId) {
-        return findByQuery("SELECT n.*, e.nom as etudiant_nom, e.cne as etudiant_cne, sm.intitule as sous_module_intitule, m.intitule as module_intitule FROM note n JOIN etudiant e ON n.etudiant_id=e.id JOIN sous_module sm ON n.sous_module_id=sm.id JOIN module m ON sm.module_id=m.id WHERE m.promotion_id=? ORDER BY e.nom, m.intitule", promotionId);
+        return findByQuery(
+            "SELECT n.*, e.nom as etudiant_nom, e.cne as etudiant_cne, " +
+            "sm.intitule as sous_module_intitule, m.intitule as module_intitule " +
+            "FROM note n JOIN etudiant e ON n.etudiant_id=e.id " +
+            "JOIN sous_module sm ON n.sous_module_id=sm.id " +
+            "JOIN module m ON sm.module_id=m.id WHERE m.promotion_id=? " +
+            "ORDER BY e.nom, m.intitule", promotionId);
     }
 
     public void validerParSousModule(Long sousModuleId) {
@@ -99,8 +135,15 @@ public class NoteDAO {
         }
     }
 
+    /**
+     * FIXED: protection contre division par zero si aucune note validee.
+     * Si SUM(sm.coefficient) = 0, retourne 0.0 au lieu de NaN.
+     */
     public double calculerMoyenneGenerale(Long etudiantId, Long promotionId) {
-        String sql = "SELECT SUM(n.valeur * sm.coefficient) / SUM(sm.coefficient) as moyenne FROM note n JOIN sous_module sm ON n.sous_module_id=sm.id JOIN module m ON sm.module_id=m.id WHERE n.etudiant_id=? AND m.promotion_id=? AND n.validee=true";
+        String sql = "SELECT COALESCE(SUM(n.valeur * sm.coefficient) / NULLIF(SUM(sm.coefficient), 0), 0.0) as moyenne " +
+                     "FROM note n JOIN sous_module sm ON n.sous_module_id=sm.id " +
+                     "JOIN module m ON sm.module_id=m.id " +
+                     "WHERE n.etudiant_id=? AND m.promotion_id=? AND n.validee=true";
         try (Connection c = DatabaseConnection.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setLong(1, etudiantId);

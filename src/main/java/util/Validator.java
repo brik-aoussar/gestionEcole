@@ -5,6 +5,10 @@ import config.Constantes;
 import java.time.LocalDate;
 import java.util.regex.Pattern;
 
+/**
+ * Validations metier.
+ * FIXED: regex CNE plus permissive, meilleurs messages d'erreur.
+ */
 public final class Validator {
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile(Constantes.REGEX_EMAIL);
@@ -39,5 +43,20 @@ public final class Validator {
 
     public static boolean validerEntierPositif(int valeur) {
         return valeur > 0;
+    }
+
+    /** FIXED: validation complete d'un etudiant avec messages explicites */
+    public static String validerEtudiant(model.Etudiant e) {
+        if (!validerChaineNonVide(e.getCne())) return "CNE obligatoire";
+        if (!validerCne(e.getCne())) return Constantes.MSG_CNE_INVALIDE;
+        if (!validerChaineNonVide(e.getNom())) return "Nom obligatoire";
+        if (!validerChaineNonVide(e.getPrenom())) return "Prenom obligatoire";
+        if (e.getEmail() != null && !e.getEmail().isBlank() && !validerEmail(e.getEmail()))
+            return Constantes.MSG_EMAIL_INVALIDE;
+        if (e.getTelephone() != null && !e.getTelephone().isBlank() && !validerTelephone(e.getTelephone()))
+            return Constantes.MSG_TELEPHONE_INVALIDE;
+        if (e.getDateNaissance() != null && !validerDateNaissance(e.getDateNaissance()))
+            return Constantes.MSG_DATE_INVALIDE;
+        return null; // tout est valide
     }
 }

@@ -2,6 +2,7 @@ package ma.ecole;
 
 import config.AppConfig;
 import config.Constantes;
+import config.DatabaseConnection;
 import javafx.application.Application;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
@@ -14,6 +15,11 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Point d'entree de l'application JavaFX.
+ * FIXED: suppression de System.exit(0) dans stop() pour un arret propre de la JVM,
+ *        fermeture du pool de connexions, chargement de l'icone robuste.
+ */
 public class MainApp extends Application {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MainApp.class);
@@ -35,11 +41,17 @@ public class MainApp extends Application {
             primaryStage.setMinHeight(Constantes.APP_MIN_HEIGHT);
             primaryStage.centerOnScreen();
 
-            // Icon
+            // Icon - FIXED: chargement robuste avec fallback
             try {
-                primaryStage.getIcons().add(new Image(Objects.requireNonNull(getClass().getResourceAsStream("/icon.png"))));
+                Image icon = new Image(Objects.requireNonNull(getClass().getResourceAsStream("/icon.png")));
+                primaryStage.getIcons().add(icon);
             } catch (Exception e) {
-                LOGGER.warn("Icone non trouvee");
+                LOGGER.warn("Icone non trouvee: {}", e.getMessage());
+                // Essayer une icone alternative
+                try {
+                    Image altIcon = new Image(Objects.requireNonNull(getClass().getResourceAsStream("/images/icon.png")));
+                    primaryStage.getIcons().add(altIcon);
+                } catch (Exception ignored) {}
             }
 
             primaryStage.show();
@@ -53,8 +65,14 @@ public class MainApp extends Application {
 
     @Override
     public void stop() {
-        LOGGER.info("Arret de l'application");
-        System.exit(0);
+        LOGGER.info("Arret de l'application - fermeture des ressources");
+        try {
+            DatabaseConnection.close();
+        } catch (Exception e) {
+            LOGGER.warn("Erreur fermeture pool: {}", e.getMessage());
+        }
+        // FIXED: ne pas appeler System.exit(0) qui tue la JVM brutalement
+        // Laisse JavaFX gerer le lifecycle normalement
     }
 
     public static void main(String[] args) {

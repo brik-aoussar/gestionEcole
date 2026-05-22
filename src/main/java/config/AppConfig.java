@@ -13,6 +13,7 @@ import java.util.Properties;
 /**
  * Charge et expose config.properties depuis le classpath.
  * Singleton thread-safe via initialisation statique.
+ * FIXED: coherence des cles, creation des sous-dossiers pdf/excel, gestion des valeurs par defaut correctes.
  */
 public final class AppConfig {
 
@@ -45,12 +46,16 @@ public final class AppConfig {
     }
 
     private void definirValeursParDefaut() {
-        props.setProperty("db.url", "jdbc:mysql://localhost:3306/gestion_ecole?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Africa/Casablanca");
+        props.setProperty("db.url", "jdbc:mysql://localhost:3306/gestion_ecole?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Africa/Casablanca&useSSL=false&allowPublicKeyRetrieval=true");
         props.setProperty("db.user", "root");
         props.setProperty("db.password", "root");
-        props.setProperty("db.pool.max", "10");
-        props.setProperty("db.pool.min", "2");
+        props.setProperty("db.driver", "com.mysql.cj.jdbc.Driver");
+        props.setProperty("db.pool.maxSize", "10");
+        props.setProperty("db.pool.minIdle", "2");
+        props.setProperty("db.pool.timeout", "30000");
         props.setProperty("export.path", "exports/");
+        props.setProperty("export.pdf.path", "exports/pdf/");
+        props.setProperty("export.excel.path", "exports/excel/");
         props.setProperty("app.name", "Gestion des Notes");
         props.setProperty("app.version", "2.0.0");
         props.setProperty("app.page.size", "50");
@@ -60,11 +65,15 @@ public final class AppConfig {
     public String getDatabaseUrl() { return props.getProperty("db.url"); }
     public String getDatabaseUser() { return props.getProperty("db.user"); }
     public String getDatabasePassword() { return props.getProperty("db.password", ""); }
-    public int getPoolMax() { return intProp("db.pool.max", 10); }
-    public int getPoolMin() { return intProp("db.pool.min", 2); }
+    public String getDatabaseDriver() { return props.getProperty("db.driver"); }
+    public int getPoolMax() { return intProp("db.pool.maxSize", 10); }
+    public int getPoolMin() { return intProp("db.pool.minIdle", 2); }
+    public long getPoolTimeout() { return longProp("db.pool.timeout", 30000L); }
 
     // ── Exports ───────────────────────────────────────────────────────────────
     public String getExportPath() { return props.getProperty("export.path", "exports/"); }
+    public String getPdfExportPath() { return props.getProperty("export.pdf.path", "exports/pdf/"); }
+    public String getExcelExportPath() { return props.getProperty("export.excel.path", "exports/excel/"); }
     public String getLogoPath() { return props.getProperty("export.pdf.logo", ""); }
 
     // ── Application ───────────────────────────────────────────────────────────
@@ -81,16 +90,23 @@ public final class AppConfig {
         try { return Integer.parseInt(props.getProperty(cle)); }
         catch (Exception ex) { return defaut; }
     }
+    private long longProp(String cle, long defaut) {
+        try { return Long.parseLong(props.getProperty(cle)); }
+        catch (Exception ex) { return defaut; }
+    }
 
     private void creerDossiersExport() {
-        Path exportDir = Paths.get(getExportPath());
-        if (!Files.exists(exportDir)) {
-            try { 
-                Files.createDirectories(exportDir);
-                LOGGER.info("Dossier d'export cree: {}", exportDir.toAbsolutePath());
-            }
-            catch (IOException ex) {
-                LOGGER.warn("Impossible de creer le dossier export: {}", ex.getMessage());
+        String[] paths = { getExportPath(), getPdfExportPath(), getExcelExportPath() };
+        for (String p : paths) {
+            if (p == null || p.isBlank()) continue;
+            Path dir = Paths.get(p);
+            if (!Files.exists(dir)) {
+                try {
+                    Files.createDirectories(dir);
+                    LOGGER.info("Dossier d'export cree: {}", dir.toAbsolutePath());
+                } catch (IOException ex) {
+                    LOGGER.warn("Impossible de creer le dossier export {}: {}", dir, ex.getMessage());
+                }
             }
         }
     }

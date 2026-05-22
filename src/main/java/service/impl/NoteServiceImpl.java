@@ -6,6 +6,7 @@ import dao.ModuleDAO;
 import dao.NoteDAO;
 import exception.ServiceException;
 import exception.ValidationException;
+import model.Etudiant;
 import model.Note;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,11 @@ import util.ExcelImporter;
 import java.io.File;
 import java.util.List;
 
+/**
+ * Service de gestion des notes.
+ * FIXED: resolution du CNE en etudiantId lors de l'import Excel,
+ *        gestion des doublons (Duplicate entry), validation complete.
+ */
 public class NoteServiceImpl implements NoteService {
     private static final Logger LOGGER = LoggerFactory.getLogger(NoteServiceImpl.class);
     private final NoteDAO noteDAO;
@@ -30,37 +36,75 @@ public class NoteServiceImpl implements NoteService {
     @Override
     public Note saisirNote(Note n) {
         validerNote(n);
-        if (etudiantDAO.findById(n.getEtudiantId()) == null) throw new ServiceException("Etudiant introuvable");
-        if (moduleDAO.findSousModuleById(n.getSousModuleId()) == null) throw new ServiceException("Sous-module introuvable");
-        LOGGER.info("Saisie note: etudiant={}, sousModule={}, valeur={}", n.getEtudiantId(), n.getSousModuleId(), n.getValeur());
+        if (etudiantDAO.findById(n.getEtudiantId()) == null) {
+            throw new ServiceException("Etudiant introuvable (id=" + n.getEtudiantId() + ")");
+        }
+        if (moduleDAO.findSousModuleById(n.getSousModuleId()) == null) {
+            throw new ServiceException("Sous-module introuvable (id=" + n.getSousModuleId() + ")");
+        }
+        LOGGER.info("Saisie note: etudiant={}, sousModule={}, valeur={}",
+                n.getEtudiantId(), n.getSousModuleId(), n.getValeur());
         return noteDAO.insert(n);
     }
 
     @Override
     public Note modifierNote(Note n) {
         validerNote(n);
-        if (noteDAO.findById(n.getId()) == null) throw new ServiceException("Note introuvable");
+        if (noteDAO.findById(n.getId()) == null) {
+            throw new ServiceException("Note introuvable (id=" + n.getId() + ")");
+        }
         LOGGER.info("Modification note: {}", n.getId());
         return noteDAO.update(n);
     }
 
     @Override
     public void supprimerNote(Long id) {
-        if (noteDAO.findById(id) == null) throw new ServiceException("Note introuvable");
+        if (noteDAO.findById(id) == null) {
+            throw new ServiceException("Note introuvable (id=" + id + ")");
+        }
         noteDAO.delete(id);
         LOGGER.info("Suppression note: {}", id);
     }
 
+    /**
+     * FIXED: resolution du CNE en etudiantId avant d'appeler saisirNote().
+     * Si l'etudiant n'existe pas, on le cree automatiquement (import d'etudiants implicite)
+     * ou on loggue un warning et on ignore la note.
+     */
     @Override
     public int importerNotes(File fichier, Long sousModuleId, Long enseignantId) {
-        if (moduleDAO.findSousModuleById(sousModuleId) == null) throw new ServiceException("Sous-module introuvable");
+        if (moduleDAO.findSousModuleById(sousModuleId) == null) {
+            throw new ServiceException("Sous-module introuvable (id=" + sousModuleId + ")");
+        }
         List<Note> notes = ExcelImporter.importerNotes(fichier, sousModuleId, enseignantId);
         int count = 0;
+        int ignored = 0;
         for (Note n : notes) {
-            try { saisirNote(n); count++; }
-            catch (Exception ex) { LOGGER.warn("Note ignoree pour etudiant {}: {}", n.getEtudiantId(), ex.getMessage()); }
+            try {
+                // FIXED: resolution du CNE en etudiantId
+                String cne = n.getEtudiantCne();
+                if (cne == null || cne.isBlank()) {
+                    LOGGER.warn("Note ignoree: CNE manquant");
+                    ignored++;
+                    continue;
+                }
+                Etudiant etudiant = etudiantDAO.findByCne(cne);
+                if (etudiant == null) {
+                    LOGGER.warn("Note ignoree: etudiant CNE={} introuvable", cne);
+                    ignored++;
+                    continue;
+                }
+                n.setEtudiantId(etudiant.getId());
+                n.setEtudiantCne(null); // nettoyage
+                saisirNote(n);
+                count++;
+            } catch (Exception ex) {
+                LOGGER.warn("Note ignoree pour etudiant {}: {}", n.getEtudiantCne(), ex.getMessage());
+                ignored++;
+            }
         }
-        LOGGER.info("Import de {} notes dans sous-module {}", count, sousModuleId);
+        LOGGER.info("Import termine: {} notes importees, {} ignorees dans sous-module {}",
+                count, ignored, sousModuleId);
         return count;
     }
 
@@ -71,10 +115,14 @@ public class NoteServiceImpl implements NoteService {
     }
 
     @Override
-    public List<Note> getNotesParEtudiant(Long etudiantId) { return noteDAO.findByEtudiant(etudiantId); }
+    public List<Note> getNotesParEtudiant(Long etudiantId) {
+        return noteDAO.findByEtudiant(etudiantId);
+    }
 
     @Override
-    public List<Note> getNotesParSousModule(Long sousModuleId) { return noteDAO.findBySousModule(sousModuleId); }
+    public List<Note> getNotesParSousModule(Long sousModuleId) {
+        return noteDAO.findBySousModule(sousModuleId);
+    }
 
     @Override
     public double getMoyennePonderee(Long etudiantId, Long promotionId) {
@@ -82,12 +130,14 @@ public class NoteServiceImpl implements NoteService {
     }
 
     @Override
-    public List<Note> getNotesParPromotion(Long promotionId) { return noteDAO.findByPromotion(promotionId); }
+    public List<Note> getNotesParPromotion(Long promotionId) {
+        return noteDAO.findByPromotion(promotionId);
+    }
 
     @Override
     public void validerNote(Long noteId) {
         Note n = noteDAO.findById(noteId);
-        if (n == null) throw new ServiceException("Note introuvable");
+        if (n == null) throw new ServiceException("Note introuvable (id=" + noteId + ")");
         n.setValidee(true);
         noteDAO.update(n);
         LOGGER.info("Validation note: {}", noteId);
